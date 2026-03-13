@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0D1B2A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Asistencia QR">
+<meta name="description" content="Sistema de registro de asistencia con código QR">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Asistencia QR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ─── RESET ──────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:       #080F18;
+  --surface:  #0D1825;
+  --card:     #111E2E;
+  --card2:    #162234;
+  --border:   rgba(255,255,255,0.07);
+  --teal:     #00D4C8;
+  --teal2:    #0099A8;
+  --green:    #22D99A;
+  --red:      #FF4D6D;
+  --yellow:   #FFD166;
+  --blue:     #4D9FFF;
+  --white:    #EEF4FF;
+  --gray:     #6B7E94;
+  --gray2:    #3D5068;
+  --font:     'Outfit', sans-serif;
+  --mono:     'JetBrains Mono', monospace;
+  --r:        18px;
+  --r2:       12px;
+  --safe-b:   env(safe-area-inset-bottom, 0px);
+}
+html{ height:100%; background:var(--bg); }
+body{
+  min-height:100%; background:var(--bg); color:var(--white);
+  font-family:var(--font); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+
+/* ─── NOISE TEXTURE ───────────────────────────────────── */
+body::before{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity:.4;
+}
+
+/* ─── APP SHELL ───────────────────────────────────────── */
+.app{ position:relative; z-index:1; display:flex; flex-direction:column; min-height:100vh; }
+
+/* ─── HEADER ──────────────────────────────────────────── */
+.hdr{
+  padding: calc(env(safe-area-inset-top,0px) + 14px) 18px 14px;
+  background: linear-gradient(180deg, rgba(13,24,37,.98) 0%, rgba(13,24,37,.85) 100%);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top:0; z-index:50;
+}
+.hdr-in{ max-width:520px; margin:0 auto; display:flex; align-items:center; gap:14px; }
+.logo{
+  width:44px; height:44px; border-radius:14px; flex-shrink:0;
+  background: linear-gradient(135deg,var(--teal),var(--teal2));
+  display:flex; align-items:center; justify-content:center; font-size:22px;
+  box-shadow: 0 4px 16px rgba(0,212,200,.3);
+}
+.hdr-txt h1{ font-size:17px; font-weight:700; letter-spacing:-.3px; }
+.hdr-txt p { font-size:11px; color:var(--teal); font-weight:500; margin-top:1px; }
+.hdr-badge{
+  margin-left:auto; background:rgba(0,212,200,.12); border:1px solid rgba(0,212,200,.25);
+  color:var(--teal); font-size:10px; font-weight:700; padding:4px 10px;
+  border-radius:99px; white-space:nowrap; letter-spacing:.4px;
+}
+
+/* ─── MAIN ────────────────────────────────────────────── */
+.main{ flex:1; max-width:520px; margin:0 auto; width:100%; padding:18px 16px calc(80px + var(--safe-b)); }
+
+/* ─── PANELS ──────────────────────────────────────────── */
+.panel{ display:none; }
+.panel.active{ display:block; animation: fadeUp .28s cubic-bezier(.4,0,.2,1); }
+@keyframes fadeUp{ from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ─── CARDS ───────────────────────────────────────────── */
+.card{
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); padding:20px; margin-bottom:14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.3);
+}
+.card-title{
+  font-size:11px; font-weight:700; letter-spacing:1.2px; color:var(--teal);
+  text-transform:uppercase; margin-bottom:16px; display:flex; align-items:center; gap:8px;
+}
+.card-title::before{ content:''; width:3px; height:14px; background:var(--teal); border-radius:99px; }
+
+/* ─── STATS GRID ──────────────────────────────────────── */
+.sg{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.sc{
+  background:var(--card2); border:1px solid var(--border); border-radius:var(--r2);
+  padding:16px 12px; text-align:center; position:relative; overflow:hidden;
+}
+.sc::after{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background: radial-gradient(circle at 50% 0%, var(--glow,rgba(0,212,200,.06)), transparent 70%);
+}
+.sc.g{ --glow: rgba(34,217,154,.08); }
+.sc.r{ --glow: rgba(255,77,109,.08); }
+.sc.y{ --glow: rgba(255,209,102,.08); }
+.sc.t{ --glow: rgba(77,159,255,.08); }
+.sn{ font-size:32px; font-weight:800; font-family:var(--mono); line-height:1; }
+.sl{ font-size:10px; color:var(--gray); margin-top:5px; font-weight:500; letter-spacing:.4px; text-transform:uppercase; }
+.sc.g .sn{ color:var(--green); }
+.sc.r .sn{ color:var(--red); }
+.sc.y .sn{ color:var(--yellow); }
+.sc.t .sn{ color:var(--blue); }
+
+/* ─── PROGRESS ────────────────────────────────────────── */
+.pw{ margin-bottom:18px; }
+.ph{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.ph span:first-child{ font-size:12px; color:var(--gray); }
+.ph span:last-child{ font-size:14px; font-weight:700; color:var(--teal); font-family:var(--mono); }
+.pb{ height:6px; background:rgba(255,255,255,.06); border-radius:99px; overflow:hidden; }
+.pf{
+  height:100%; border-radius:99px;
+  background: linear-gradient(90deg, var(--teal2), var(--teal), var(--green));
+  background-size:200% 100%;
+  transition: width .7s cubic-bezier(.4,0,.2,1);
+  animation: shimmer 3s linear infinite;
+}
+@keyframes shimmer{ 0%{background-position:100% 0} 100%{background-position:-100% 0} }
+
+/* ─── CAMERA AREA ─────────────────────────────────────── */
+.cam-wrap{
+  position:relative; border-radius:16px; overflow:hidden;
+  background:#000; margin-bottom:14px; aspect-ratio:4/3;
+}
+#qr-video{ width:100%; height:100%; object-fit:cover; display:block; }
+.cam-overlay{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  pointer-events:none;
+}
+.scan-frame{ width:200px; height:200px; position:relative; }
+.sf-corner{
+  position:absolute; width:28px; height:28px;
+  border-color:var(--teal); border-style:solid; border-width:0;
+}
+.sf-corner.tl{ top:0; left:0; border-top-width:3px; border-left-width:3px; border-radius:6px 0 0 0; }
+.sf-corner.tr{ top:0; right:0; border-top-width:3px; border-right-width:3px; border-radius:0 6px 0 0; }
+.sf-corner.bl{ bottom:0; left:0; border-bottom-width:3px; border-left-width:3px; border-radius:0 0 0 6px; }
+.sf-corner.br{ bottom:0; right:0; border-bottom-width:3px; border-right-width:3px; border-radius:0 0 6px 0; }
+.scan-line{
+  position:absolute; left:6px; right:6px; height:2px;
+  background:linear-gradient(90deg,transparent,var(--teal),var(--green),var(--teal),transparent);
+  box-shadow: 0 0 8px var(--teal);
+  animation: scanline 2s ease-in-out infinite;
+}
+@keyframes scanline{
+  0%,100%{ top:6px; opacity:.6; }
+  50%{ top:calc(100% - 8px); opacity:1; }
+}
+.cam-hint-bar{
+  position:absolute; bottom:0; left:0; right:0; padding:12px;
+  background:linear-gradient(0deg,rgba(0,0,0,.8),transparent);
+  text-align:center; font-size:12px; color:rgba(255,255,255,.8);
+}
+#cam-status-dot{
+  display:inline-block; width:8px; height:8px; border-radius:50%;
+  background:var(--teal); margin-right:6px;
+  animation:pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.3} }
+#qr-canvas{ display:none; }
+
+/* ─── DNI INPUT ───────────────────────────────────────── */
+.dni-wrap{ position:relative; margin-bottom:12px; }
+.dni-in{
+  width:100%; padding:17px 52px 17px 18px;
+  background:rgba(255,255,255,.04); border:2px solid var(--border);
+  border-radius:14px; color:var(--white);
+  font-family:var(--mono); font-size:24px; font-weight:700;
+  letter-spacing:4px; text-align:center; outline:none;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.dni-in:focus{
+  border-color:var(--teal); background:rgba(0,212,200,.04);
+  box-shadow:0 0 0 4px rgba(0,212,200,.12);
+}
+.dni-in::placeholder{ font-size:13px; letter-spacing:1px; color:var(--gray2); font-family:var(--font); font-weight:400; }
+.dni-clr{
+  position:absolute; right:14px; top:50%; transform:translateY(-50%);
+  background:none; border:none; color:var(--gray); cursor:pointer;
+  font-size:18px; padding:4px; line-height:1; transition:color .2s;
+}
+.dni-clr:hover{ color:var(--white); }
+
+/* ─── BUTTONS ─────────────────────────────────────────── */
+.btn{
+  display:flex; align-items:center; justify-content:center; gap:9px;
+  width:100%; padding:15px 20px; border:none; border-radius:14px;
+  font-size:15px; font-weight:700; cursor:pointer;
+  font-family:var(--font); letter-spacing:.2px; transition:all .18s;
+  margin-bottom:10px; position:relative; overflow:hidden;
+}
+.btn::after{
+  content:''; position:absolute; inset:0;
+  background:rgba(255,255,255,0); transition:background .18s;
+}
+.btn:active::after{ background:rgba(255,255,255,.08); }
+.btn:active{ transform:scale(.98); }
+.btn-cam{
+  background:linear-gradient(135deg,var(--teal2),var(--teal));
+  color:#000; font-weight:800;
+  box-shadow:0 6px 24px rgba(0,212,200,.3);
+}
+.btn-cam:hover{ box-shadow:0 8px 32px rgba(0,212,200,.45); }
+.btn-reg{
+  background:linear-gradient(135deg,var(--green),#18B882);
+  color:#000; font-weight:800;
+  box-shadow:0 6px 24px rgba(34,217,154,.25);
+}
+.btn-stop{
+  background:rgba(255,77,109,.12); border:1.5px solid rgba(255,77,109,.3);
+  color:var(--red); font-weight:600;
+}
+.btn-ghost{
+  background:rgba(255,255,255,.04); border:1.5px solid var(--border);
+  color:var(--gray); font-weight:600;
+}
+.btn-ghost:hover{ border-color:var(--teal); color:var(--teal); }
+.btn-gold{
+  background:linear-gradient(135deg,var(--yellow),#E5A020);
+  color:#000; font-weight:800; box-shadow:0 6px 24px rgba(255,209,102,.25);
+}
+.btn-add{
+  background:linear-gradient(135deg,var(--green),#18B882);
+  color:#000; font-weight:800; padding:10px 18px;
+  width:auto; font-size:13px; border-radius:10px; margin-bottom:0;
+}
+.btn-sm{
+  padding:8px 14px; font-size:12px; width:auto;
+  border-radius:10px; margin-bottom:0;
+}
+.btn-row{ display:flex; gap:10px; }
+.btn-row .btn{ margin-bottom:0; }
+
+/* ─── RESULT BOX ──────────────────────────────────────── */
+.res{
+  border-radius:14px; padding:16px 18px; margin-top:12px;
+  display:flex; gap:14px; align-items:flex-start;
+  animation:slideIn .25s ease;
+}
+@keyframes slideIn{ from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+.res.ok{ background:rgba(34,217,154,.08); border:1.5px solid rgba(34,217,154,.25); }
+.res.err{ background:rgba(255,77,109,.08); border:1.5px solid rgba(255,77,109,.25); }
+.res.warn{ background:rgba(255,209,102,.08); border:1.5px solid rgba(255,209,102,.25); }
+.res-ico{ font-size:28px; flex-shrink:0; line-height:1; margin-top:2px; }
+.res-name{ font-size:16px; font-weight:700; margin-bottom:3px; }
+.res-det{ font-size:12px; color:var(--gray); line-height:1.7; }
+.res-hora{ font-family:var(--mono); font-size:22px; font-weight:700; color:var(--green); margin:4px 0; }
+
+/* ─── ERROR CAMARA ────────────────────────────────────── */
+.cam-err{
+  display:none; background:rgba(255,77,109,.06); border:1.5px solid rgba(255,77,109,.2);
+  border-radius:14px; padding:18px; font-size:13px; color:var(--white); line-height:1.9;
+  margin-bottom:12px;
+}
+
+/* ─── FORM ────────────────────────────────────────────── */
+.fg{ margin-bottom:13px; }
+.fl{ font-size:11px; font-weight:600; color:var(--gray); letter-spacing:.7px; text-transform:uppercase; margin-bottom:5px; display:block; }
+.fi,.fs{
+  width:100%; padding:13px 15px; background:rgba(255,255,255,.04);
+  border:1.5px solid var(--border); border-radius:12px; color:var(--white);
+  font-size:14px; font-family:var(--font); outline:none; transition:border-color .2s;
+  appearance:none; -webkit-appearance:none;
+}
+.fi:focus,.fs:focus{ border-color:var(--teal); }
+.fs option{ background:var(--surface); }
+.fr{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+/* ─── LIST ITEMS ──────────────────────────────────────── */
+.stu-item{
+  display:flex; align-items:center; gap:13px; padding:13px 15px;
+  background:var(--card2); border:1px solid var(--border); border-radius:14px;
+  margin-bottom:9px; transition:border-color .2s;
+}
+.stu-item:hover{ border-color:rgba(0,212,200,.3); }
+.stu-av{
+  width:42px; height:42px; border-radius:12px; flex-shrink:0;
+  background:linear-gradient(135deg,var(--teal2),#0D3A6E);
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; font-weight:800; color:#fff;
+}
+.stu-info{ flex:1; min-width:0; }
+.stu-name{ font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stu-meta{ font-size:11px; color:var(--gray); margin-top:2px; }
+.stu-dni{ font-family:var(--mono); font-size:11px; color:var(--teal); margin-top:2px; }
+.stu-acts{ display:flex; gap:7px; }
+
+.att-item{
+  display:flex; align-items:center; gap:11px; padding:11px 13px;
+  background:var(--card2); border:1px solid var(--border);
+  border-radius:12px; margin-bottom:8px;
+}
+.att-av{
+  width:36px; height:36px; border-radius:10px; flex-shrink:0;
+  background:linear-gradient(135deg,#1A3A5C,#0D2040);
+  display:flex; align-items:center; justify-content:center; font-size:15px;
+}
+.att-info{ flex:1; min-width:0; }
+.att-name{ font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.att-meta{ font-size:11px; color:var(--gray); margin-top:1px; }
+.att-hora{ font-family:var(--mono); font-size:11px; color:var(--teal); }
+.badge{ padding:3px 10px; border-radius:99px; font-size:10px; font-weight:700; flex-shrink:0; white-space:nowrap; letter-spacing:.3px; }
+.bp{ background:rgba(34,217,154,.15); color:var(--green); }
+.bt{ background:rgba(255,209,102,.15); color:var(--yellow); }
+.ba{ background:rgba(255,77,109,.15); color:var(--red); }
+.bj{ background:rgba(77,159,255,.15); color:var(--blue); }
+
+/* ─── SEARCH ──────────────────────────────────────────── */
+.sw{ position:relative; margin-bottom:13px; }
+.si{ position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--gray2); font-size:14px; }
+.srch{
+  width:100%; padding:11px 14px 11px 38px;
+  background:rgba(255,255,255,.04); border:1.5px solid var(--border);
+  border-radius:12px; color:var(--white); font-size:13px;
+  font-family:var(--font); outline:none; transition:border-color .2s;
+}
+.srch:focus{ border-color:var(--teal); }
+
+/* ─── REPORT TABLE ────────────────────────────────────── */
+.tw{ overflow-x:auto; border-radius:12px; border:1px solid var(--border); margin-bottom:10px; }
+.rt{ border-collapse:collapse; width:100%; min-width:460px; font-size:11px; }
+.rt th{
+  background:#0D2540; color:rgba(255,255,255,.8); padding:9px 8px;
+  text-align:center; font-weight:700; white-space:nowrap;
+  border:1px solid rgba(255,255,255,.06);
+}
+.rt td{ padding:7px 8px; text-align:center; border:1px solid rgba(255,255,255,.04); vertical-align:middle; }
+.rt tr:nth-child(even) td{ background:rgba(255,255,255,.015); }
+.td-n{ text-align:left; font-weight:500; min-width:130px; padding-left:12px; }
+.wb{ display:inline-block; padding:3px 7px; border-radius:6px; font-weight:700; font-size:10px; }
+.wP{ background:rgba(34,217,154,.2); color:var(--green); }
+.wT{ background:rgba(255,209,102,.2); color:var(--yellow); }
+.wA{ background:rgba(255,77,109,.2); color:var(--red); }
+.wD{ background:rgba(107,126,148,.12); color:var(--gray); }
+
+/* ─── LOADING ─────────────────────────────────────────── */
+.spin{
+  width:20px; height:20px; border:2px solid rgba(255,255,255,.1);
+  border-top-color:var(--teal); border-radius:50%;
+  animation:spin .65s linear infinite; display:inline-block;
+}
+@keyframes spin{ to{transform:rotate(360deg)} }
+.lov{
+  position:fixed; inset:0; background:rgba(8,15,24,.88); display:none;
+  flex-direction:column; align-items:center; justify-content:center; z-index:200;
+  backdrop-filter:blur(8px);
+}
+.lov.show{ display:flex; }
+.lov p{ color:var(--gray); font-size:13px; margin-top:14px; font-weight:500; }
+
+/* ─── EMPTY ───────────────────────────────────────────── */
+.empty{ text-align:center; padding:40px 16px; color:var(--gray); }
+.empty span{ font-size:48px; display:block; margin-bottom:12px; opacity:.3; }
+.empty p{ font-size:13px; line-height:1.7; }
+
+/* ─── TOAST ───────────────────────────────────────────── */
+#toast{
+  position:fixed; bottom:calc(76px + var(--safe-b)); left:50%;
+  transform:translateX(-50%) translateY(12px);
+  background:var(--card2); border:1px solid var(--border);
+  color:var(--white); padding:11px 22px; border-radius:99px;
+  font-size:13px; font-weight:500; z-index:300;
+  opacity:0; transition:all .28s; white-space:nowrap;
+  box-shadow:0 8px 28px rgba(0,0,0,.5); pointer-events:none;
+}
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ─── BOTTOM NAV ──────────────────────────────────────── */
+.bnav{
+  position:fixed; bottom:0; left:0; right:0;
+  background:rgba(8,15,24,.95); border-top:1px solid var(--border);
+  backdrop-filter:blur(20px);
+  display:flex; justify-content:space-around; align-items:center;
+  padding:8px 0 calc(8px + var(--safe-b)); z-index:100;
+}
+.nb{
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  cursor:pointer; padding:5px 12px; border-radius:12px;
+  color:var(--gray2); font-size:10px; font-weight:600; letter-spacing:.2px;
+  border:none; background:none; min-width:54px; transition:all .2s;
+}
+.nb .ic{ font-size:22px; transition:transform .2s; }
+.nb.active{ color:var(--teal); }
+.nb.active .ic{ transform:scale(1.1); }
+.nb:active{ background:rgba(255,255,255,.04); }
+
+/* ─── MODAL ───────────────────────────────────────────── */
+.mbg{
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:200;
+  align-items:flex-end; justify-content:center; backdrop-filter:blur(4px);
+}
+.mbg.open{ display:flex; animation:fadeIn .2s; }
+@keyframes fadeIn{ from{opacity:0} to{opacity:1} }
+.modal{
+  background:var(--card); border:1px solid var(--border);
+  border-radius:24px 24px 0 0; padding:22px 18px calc(24px + var(--safe-b));
+  width:100%; max-width:520px; animation:slideUp .28s cubic-bezier(.4,0,.2,1);
+}
+@keyframes slideUp{ from{transform:translateY(50px);opacity:0} to{transform:translateY(0);opacity:1} }
+.mhandle{ width:36px; height:4px; background:var(--border); border-radius:99px; margin:0 auto 18px; }
+.mtitle{ font-size:16px; font-weight:700; margin-bottom:18px; }
+
+/* ─── QR MODAL ────────────────────────────────────────── */
+.qr-wrap{ background:#fff; border-radius:14px; padding:16px; display:inline-block; box-shadow:0 8px 32px rgba(0,0,0,.4); }
+#qr-out{ display:flex; justify-content:center; margin:12px 0; }
+
+/* ─── SECTION DIVIDER ─────────────────────────────────── */
+.divider{
+  display:flex; align-items:center; gap:12px;
+  margin:6px 0 14px; font-size:11px; color:var(--gray2);
+}
+.divider::before,.divider::after{ content:''; flex:1; height:1px; background:var(--border); }
+
+/* ─── SCROLLBAR ───────────────────────────────────────── */
+::-webkit-scrollbar{ width:4px; height:4px; }
+::-webkit-scrollbar-thumb{ background:var(--border); border-radius:99px; }
+
+/* ─── CONFIG PANEL ────────────────────────────────────── */
+.cfg-row{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; background:var(--card2); border:1px solid var(--border);
+  border-radius:12px; margin-bottom:9px;
+}
+.cfg-label{ font-size:13px; font-weight:500; }
+.cfg-sub{ font-size:11px; color:var(--gray); margin-top:2px; }
+.cfg-input{
+  background:rgba(255,255,255,.06); border:1.5px solid var(--border);
+  border-radius:8px; color:var(--white); font-family:var(--mono);
+  font-size:13px; padding:7px 11px; width:140px; outline:none; text-align:right;
+}
+.cfg-input:focus{ border-color:var(--teal); }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-in">
+    <div class="logo">🎓</div>
+    <div class="hdr-txt">
+      <h1>Asistencia QR</h1>
+      <p id="hdr-date">Cargando...</p>
+    </div>
+    <div class="hdr-badge" id="hdr-badge">● EN LÍNEA</div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- ── HOME ── -->
+  <div class="panel active" id="p-home">
+    <div class="card">
+      <div class="card-title">Resumen de Hoy</div>
+      <div class="sg">
+        <div class="sc g"><div class="sn" id="st-p">–</div><div class="sl">Presentes</div></div>
+        <div class="sc r"><div class="sn" id="st-a">–</div><div class="sl">Ausentes</div></div>
+        <div class="sc y"><div class="sn" id="st-t">–</div><div class="sl">Tardanzas</div></div>
+        <div class="sc t"><div class="sn" id="st-total">–</div><div class="sl">Total Alumnos</div></div>
+      </div>
+      <div class="pw">
+        <div class="ph"><span>Asistencia del día</span><span id="st-pct">–%</span></div>
+        <div class="pb"><div class="pf" id="pbar" style="width:0%"></div></div>
+      </div>
+      <button class="btn btn-ghost" id="btn-actualizar">🔄 Actualizar datos</button>
+    </div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--gray);text-transform:uppercase;margin:18px 0 10px;display:flex;align-items:center;gap:8px">
+      Últimos registros <span style="flex:1;height:1px;background:var(--border)"></span>
+    </div>
+    <div id="home-recent"></div>
+  </div>
+
+  <!-- ── ESCANEAR ── -->
+  <div class="panel" id="p-scan">
+    <div class="card">
+      <div class="card-title">Registrar Asistencia</div>
+
+      <!-- VIDEO CÁMARA -->
+      <div id="cam-area" style="display:none">
+        <div class="cam-wrap">
+          <video id="qr-video" playsinline muted autoplay></video>
+          <canvas id="qr-canvas"></canvas>
+          <div class="cam-overlay">
+            <div class="scan-frame">
+              <div class="sf-corner tl"></div>
+              <div class="sf-corner tr"></div>
+              <div class="sf-corner bl"></div>
+              <div class="sf-corner br"></div>
+              <div class="scan-line"></div>
+            </div>
+          </div>
+          <div class="cam-hint-bar">
+            <span id="cam-status-dot"></span>
+            <span id="cam-status-txt">Apunte al código QR</span>
+          </div>
+        </div>
+        <button class="btn btn-stop" id="btn-stop-cam">⏹ Detener cámara</button>
+      </div>
+
+      <!-- BOTÓN ABRIR CÁMARA -->
+      <div id="cam-btn-area">
+        <button class="btn btn-cam" id="btn-open-cam">
+          📷 Abrir Cámara — Escanear QR
+        </button>
+      </div>
+
+      <!-- ERROR CÁMARA -->
+      <div class="cam-err" id="cam-err"></div>
+
+      <!-- SEPARADOR -->
+      <div class="divider">o ingrese el DNI manualmente</div>
+
+      <!-- DNI MANUAL -->
+      <div class="dni-wrap">
+        <input type="tel" class="dni-in" id="dni-input" placeholder="DNI del estudiante" maxlength="8" autocomplete="off" inputmode="numeric">
+        <button class="dni-clr" id="btn-clr">✕</button>
+      </div>
+      <button class="btn btn-reg" id="btn-reg">✅ Registrar Asistencia</button>
+      <div id="scan-result"></div>
+    </div>
+    <div class="card" style="font-size:13px;color:var(--gray);line-height:2">
+      <div class="card-title">Horario de corte</div>
+      <div>⏰ Hasta <b id="hora-corte-display" style="color:var(--white)">7:15 AM</b> → <span style="color:var(--green)">PRESENTE</span></div>
+      <div>⏰ Después → <span style="color:var(--yellow)">TARDANZA</span></div>
+    </div>
+  </div>
+
+  <!-- ── HOY ── -->
+  <div class="panel" id="p-hoy">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+      <div style="font-size:15px;font-weight:700">📋 Lista de Hoy</div>
+      <button class="btn btn-ghost btn-sm" id="btn-ref-hoy">🔄</button>
+    </div>
+    <div class="sw"><span class="si">🔍</span>
+      <input class="srch" id="srch-hoy" placeholder="Buscar nombre o sección...">
+    </div>
+    <div id="list-hoy"></div>
+  </div>
+
+  <!-- ── ALUMNOS ── -->
+  <div class="panel" id="p-alumnos">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+      <div style="font-size:15px;font-weight:700">👥 Estudiantes</div>
+      <button class="btn btn-add" id="btn-add">+ Agregar</button>
+    </div>
+    <div class="sw"><span class="si">🔍</span>
+      <input class="srch" id="srch-stu" placeholder="Buscar estudiante...">
+    </div>
+    <div id="list-stu"></div>
+  </div>
+
+  <!-- ── REPORTE ── -->
+  <div class="panel" id="p-reporte">
+    <div class="card">
+      <div class="card-title">Reporte Semanal</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:16px">Semana actual · Organizado por sección</p>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btn-ver-rep">👁 Ver reporte</button>
+        <button class="btn btn-gold" id="btn-exp-rep">📥 Exportar a Sheets</button>
+      </div>
+    </div>
+    <div id="rep-content"></div>
+  </div>
+
+  <!-- ── CONFIGURACIÓN ── -->
+  <div class="panel" id="p-config">
+    <div class="card">
+      <div class="card-title">Configuración</div>
+
+      <div class="cfg-row">
+        <div>
+          <div class="cfg-label">🔗 URL de Google Apps Script</div>
+          <div class="cfg-sub">Pegue su enlace de implementación</div>
+        </div>
+      </div>
+      <textarea id="cfg-url" class="fi" rows="3" placeholder="https://script.google.com/macros/s/.../exec"
+        style="resize:none;font-size:11px;font-family:var(--mono);margin-bottom:10px;padding:12px"></textarea>
+
+      <div class="cfg-row">
+        <div>
+          <div class="cfg-label">⏰ Hora de corte (PRESENTE)</div>
+          <div class="cfg-sub">Después de esta hora = TARDANZA</div>
+        </div>
+        <input type="time" class="cfg-input" id="cfg-hora" value="07:15">
+      </div>
+
+      <button class="btn btn-cam" id="btn-save-cfg" style="margin-top:6px">💾 Guardar configuración</button>
+      <div id="cfg-status" style="font-size:12px;color:var(--green);text-align:center;min-height:20px;margin-top:4px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Acerca de</div>
+      <div style="font-size:13px;color:var(--gray);line-height:1.9">
+        <div>📱 <b style="color:var(--white)">Sistema de Asistencia QR</b></div>
+        <div>Versión 1.0 — PWA</div>
+        <div style="margin-top:8px">Los datos se guardan en <b style="color:var(--white)">Google Sheets</b> a través de Apps Script.</div>
+        <div style="margin-top:8px;padding:10px;background:rgba(0,212,200,.06);border-radius:8px;color:var(--teal)">
+          ℹ️ Configure primero la URL de su Apps Script para que la app funcione.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- BOTTOM NAV -->
+<nav class="bnav">
+  <button class="nb active" id="nb-home" data-p="home"><span class="ic">🏠</span>Home</button>
+  <button class="nb" id="nb-scan" data-p="scan"><span class="ic">📷</span>Escanear</button>
+  <button class="nb" id="nb-hoy" data-p="hoy"><span class="ic">📋</span>Hoy</button>
+  <button class="nb" id="nb-alumnos" data-p="alumnos"><span class="ic">👥</span>Alumnos</button>
+  <button class="nb" id="nb-reporte" data-p="reporte"><span class="ic">📊</span>Reporte</button>
+  <button class="nb" id="nb-config" data-p="config"><span class="ic">⚙️</span>Config</button>
+</nav>
+</div><!-- /app -->
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- LOADING -->
+<div class="lov" id="loading">
+  <div class="spin" style="width:36px;height:36px;border-width:3px"></div>
+  <p id="load-msg">Procesando...</p>
+</div>
+
+<!-- MODAL AGREGAR ALUMNO -->
+<div class="mbg" id="modal-add">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">➕ Agregar Estudiante</div>
+    <div class="fg"><label class="fl">Apellidos y Nombres</label>
+      <input type="text" class="fi" id="f-nombre" placeholder="García López, Juan Carlos" autocomplete="off"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Grado</label>
+        <select class="fs" id="f-grado">
+          <option>1°</option><option>2°</option><option>3°</option><option>4°</option><option>5°</option>
+        </select></div>
+      <div class="fg"><label class="fl">Sección</label>
+        <select class="fs" id="f-seccion">
+          <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+        </select></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Celular</label>
+        <input type="tel" class="fi" id="f-cel" placeholder="9XXXXXXXX"></div>
+      <div class="fg"><label class="fl">DNI — clave QR</label>
+        <input type="text" class="fi" id="f-dni" placeholder="8 dígitos" maxlength="8" inputmode="numeric"></div>
+    </div>
+    <div class="btn-row" style="margin-top:6px">
+      <button class="btn btn-ghost" id="btn-cancel">Cancelar</button>
+      <button class="btn btn-reg" id="btn-save">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL QR -->
+<div class="mbg" id="modal-qr">
+  <div class="modal" style="text-align:center">
+    <div class="mhandle"></div>
+    <div class="mtitle" id="qr-name">QR Estudiante</div>
+    <div id="qr-out"></div>
+    <div id="qr-dni" style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--teal);margin:8px 0"></div>
+    <p style="font-size:12px;color:var(--gray);margin-bottom:16px">Escanee con la cámara para registrar asistencia</p>
+    <button class="btn btn-ghost" id="btn-close-qr">Cerrar</button>
+  </div>
+</div>
+
+<!-- jsQR library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+// ── CONFIG ─────────────────────────────────────────────
+var CFG_KEY  = 'asistencia_cfg';
+var STU_KEY  = 'asistencia_estudiantes';
+var HOY_KEY  = 'asistencia_hoy_';
+
+function loadCfg(){
+  try{ return JSON.parse(localStorage.getItem(CFG_KEY))||{}; }catch(e){ return {}; }
+}
+function saveCfg(c){ localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
+
+var cfg = loadCfg();
+var GAS_URL  = cfg.gasUrl  || '';
+var HORA_CORTE = cfg.horaCorte || '07:15';
+
+// ── LOCAL DATA ─────────────────────────────────────────
+function getTodayKey(){
+  var d=new Date();
+  return HOY_KEY + d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+}
+function getStudents(){
+  try{ return JSON.parse(localStorage.getItem(STU_KEY))||[]; }catch(e){ return []; }
+}
+function saveStudents(arr){ localStorage.setItem(STU_KEY, JSON.stringify(arr)); }
+function getTodayRecords(){
+  try{ return JSON.parse(localStorage.getItem(getTodayKey()))||[]; }catch(e){ return []; }
+}
+function saveTodayRecords(arr){ localStorage.setItem(getTodayKey(), JSON.stringify(arr)); }
+
+// ── API CALL TO APPS SCRIPT ────────────────────────────
+function gasCall(action, data, onSuccess, onError){
+  if(!GAS_URL){
+    onError && onError('Configure primero la URL de Apps Script en ⚙️ Config');
+    return;
+  }
+  var params = { action: action };
+  if(data) params.data = JSON.stringify(data);
+  var qs = Object.keys(params).map(function(k){
+    return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);
+  }).join('&');
+  fetch(GAS_URL + '?' + qs)
+    .then(function(r){ return r.json(); })
+    .then(function(r){ onSuccess && onSuccess(r); })
+    .catch(function(e){ onError && onError(e.message); });
+}
+
+// ── STATE ──────────────────────────────────────────────
+var allStudents = getStudents();
+var allHoy      = getTodayRecords();
+var camStream   = null;
+var scanTimer   = null;
+var scanned     = false;
+
+// ── INIT ───────────────────────────────────────────────
+window.addEventListener('load', function(){
+  setDate();
+  bindAll();
+  updateStats();
+  renderHoy(allHoy);
+  renderStudents(allStudents);
+  // Load cfg inputs
+  document.getElementById('cfg-url').value  = GAS_URL;
+  document.getElementById('cfg-hora').value = HORA_CORTE;
+  document.getElementById('hora-corte-display').textContent =
+    HORA_CORTE ? formatHora12(HORA_CORTE) : '7:15 AM';
+  // Sync from server if URL configured
+  if(GAS_URL) syncFromServer();
+});
+
+function setDate(){
+  var d = new Date();
+  var days=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var months=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  document.getElementById('hdr-date').textContent =
+    days[d.getDay()]+' '+d.getDate()+' '+months[d.getMonth()];
+}
+
+function formatHora12(t){
+  if(!t) return '7:15 AM';
+  var p=t.split(':'); var h=parseInt(p[0]); var m=p[1];
+  return (h>12?h-12:h)+':'+m+' '+(h>=12?'PM':'AM');
+}
+
+// ── SYNC FROM SERVER ───────────────────────────────────
+function syncFromServer(){
+  gasCall('getEstudiantes', null, function(res){
+    if(res && res.ok && res.data){
+      saveStudents(res.data);
+      allStudents = res.data;
+      renderStudents(allStudents);
+    }
+  }, function(){});
+  gasCall('getAsistenciaHoy', null, function(res){
+    if(res && res.ok && res.data){
+      saveTodayRecords(res.data);
+      allHoy = res.data;
+      renderHoy(allHoy);
+      updateStats();
+    }
+  }, function(){});
+}
+
+// ── BIND EVENTS ────────────────────────────────────────
+function bindAll(){
+  // Nav
+  document.querySelectorAll('.nb').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      showPanel(btn.getAttribute('data-p'));
+    });
+  });
+
+  // Home
+  document.getElementById('btn-actualizar').addEventListener('click', function(){
+    showLoad('Actualizando...');
+    syncFromServer();
+    setTimeout(hideLoad, 1500);
+    toast('✅ Datos actualizados');
+  });
+
+  // Camera
+  document.getElementById('btn-open-cam').addEventListener('click', openCam);
+  document.getElementById('btn-stop-cam').addEventListener('click', stopCam);
+
+  // DNI
+  document.getElementById('btn-reg').addEventListener('click', registrar);
+  document.getElementById('btn-clr').addEventListener('click', clearDNI);
+  var dniEl = document.getElementById('dni-input');
+  dniEl.addEventListener('keydown', function(e){ if(e.key==='Enter') registrar(); });
+  dniEl.addEventListener('input', function(){
+    if(this.value.trim().length===8) registrar();
+  });
+
+  // Hoy
+  document.getElementById('btn-ref-hoy').addEventListener('click', function(){
+    if(GAS_URL){ showLoad('Cargando...'); gasCall('getAsistenciaHoy',null,function(r){
+      hideLoad();
+      if(r&&r.ok&&r.data){ allHoy=r.data; saveTodayRecords(r.data); renderHoy(r.data); updateStats(); }
+    },function(e){ hideLoad(); toast('❌ '+e); }); }
+    else{ renderHoy(allHoy); }
+  });
+  document.getElementById('srch-hoy').addEventListener('input', function(){
+    var q=this.value.toLowerCase();
+    renderHoy(allHoy.filter(function(r){
+      return r.nombre.toLowerCase().includes(q)||r.seccion.toLowerCase().includes(q)||r.grado.includes(q);
+    }));
+  });
+
+  // Alumnos
+  document.getElementById('btn-add').addEventListener('click', function(){
+    document.getElementById('modal-add').classList.add('open');
+  });
+  document.getElementById('srch-stu').addEventListener('input', function(){
+    var q=this.value.toLowerCase();
+    renderStudents(allStudents.filter(function(s){
+      return s.nombre.toLowerCase().includes(q)||s.dni.includes(q)||s.grado.includes(q);
+    }));
+  });
+
+  // Modal add
+  document.getElementById('btn-cancel').addEventListener('click', closeAddModal);
+  document.getElementById('btn-save').addEventListener('click', guardarAlumno);
+  document.getElementById('modal-add').addEventListener('click', function(e){
+    if(e.target===this) closeAddModal();
+  });
+
+  // Modal QR
+  document.getElementById('btn-close-qr').addEventListener('click', function(){
+    document.getElementById('modal-qr').classList.remove('open');
+  });
+  document.getElementById('modal-qr').addEventListener('click', function(e){
+    if(e.target===this) this.classList.remove('open');
+  });
+
+  // Reporte
+  document.getElementById('btn-ver-rep').addEventListener('click', verReporte);
+  document.getElementById('btn-exp-rep').addEventListener('click', exportarReporte);
+
+  // Config
+  document.getElementById('btn-save-cfg').addEventListener('click', guardarConfig);
+}
+
+// ── NAVIGATION ──────────────────────────────────────────
+function showPanel(name){
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.nb').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById('p-'+name).classList.add('active');
+  document.getElementById('nb-'+name).classList.add('active');
+  if(name!=='scan') stopCam();
+  if(name==='hoy') renderHoy(allHoy);
+}
+
+// ── LOADING / TOAST ─────────────────────────────────────
+function showLoad(m){ document.getElementById('load-msg').textContent=m||'Procesando...'; document.getElementById('loading').classList.add('show'); }
+function hideLoad(){ document.getElementById('loading').classList.remove('show'); }
+function toast(m){
+  var t=document.getElementById('toast'); t.textContent=m; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); },2800);
+}
+
+// ── STATS ────────────────────────────────────────────────
+function updateStats(){
+  var total = allStudents.length;
+  var pres  = allHoy.filter(function(r){ return r.estado==='PRESENTE'||r.estado==='TARDE'; }).length;
+  var tard  = allHoy.filter(function(r){ return r.estado==='TARDE'; }).length;
+  var aus   = total - pres;
+  var pct   = total>0 ? Math.round(pres/total*100) : 0;
+  document.getElementById('st-p').textContent     = pres;
+  document.getElementById('st-a').textContent     = aus;
+  document.getElementById('st-t').textContent     = tard;
+  document.getElementById('st-total').textContent = total;
+  document.getElementById('st-pct').textContent   = pct+'%';
+  document.getElementById('pbar').style.width     = pct+'%';
+}
+
+// ── CAMERA ──────────────────────────────────────────────
+function openCam(){
+  scanned = false;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    showCamErr('no-support'); return;
+  }
+  document.getElementById('cam-btn-area').style.display='none';
+  document.getElementById('cam-area').style.display='block';
+  document.getElementById('cam-err').style.display='none';
+  document.getElementById('cam-status-txt').textContent='Iniciando cámara...';
+
+  navigator.mediaDevices.getUserMedia({
+    video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} }
+  }).then(function(stream){
+    camStream=stream;
+    var v=document.getElementById('qr-video');
+    v.srcObject=stream; v.play();
+    document.getElementById('cam-status-txt').textContent='Apunte al código QR';
+    startScan();
+  }).catch(function(err){
+    stopCam();
+    if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError') showCamErr('denied');
+    else if(err.name==='NotFoundError') showCamErr('notfound');
+    else showCamErr('other');
+  });
+}
+
+function stopCam(){
+  if(camStream){ camStream.getTracks().forEach(function(t){t.stop();}); camStream=null; }
+  if(scanTimer){ clearInterval(scanTimer); scanTimer=null; }
+  var v=document.getElementById('qr-video');
+  if(v) v.srcObject=null;
+  document.getElementById('cam-area').style.display='none';
+  document.getElementById('cam-btn-area').style.display='block';
+}
+
+function startScan(){
+  var video=document.getElementById('qr-video');
+  var canvas=document.getElementById('qr-canvas');
+  var ctx=canvas.getContext('2d');
+  scanTimer=setInterval(function(){
+    if(!video||video.readyState!==video.HAVE_ENOUGH_DATA) return;
+    var vw=video.videoWidth; var vh=video.videoHeight;
+    if(!vw||!vh) return;
+    canvas.width=vw; canvas.height=vh;
+    ctx.drawImage(video,0,0,vw,vh);
+    try{
+      var img=ctx.getImageData(0,0,vw,vh);
+      var code=jsQR(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'});
+      if(code&&code.data&&!scanned){
+        var raw=code.data.trim();
+        var dni=raw.replace(/\D/g,'');
+        if(dni.length>=7&&dni.length<=8){
+          scanned=true;
+          document.getElementById('cam-status-txt').textContent='✅ DNI: '+dni;
+          document.getElementById('dni-input').value=dni;
+          if(navigator.vibrate) navigator.vibrate([80,40,80]);
+          setTimeout(function(){ stopCam(); registrar(); },500);
+        }
+      }
+    }catch(e){}
+  },150);
+}
+
+function showCamErr(tipo){
+  var el=document.getElementById('cam-err');
+  el.style.display='block';
+  var msgs={
+    denied:'<b style="color:var(--yellow)">⚠️ Permiso de cámara denegado</b><br><br>'+
+      '<b>Chrome Android:</b> Toque 🔒 en la barra → Permisos → Cámara ✅ → Recargar<br><br>'+
+      '<b>Safari iPhone:</b> Ajustes → Safari → Cámara → Permitir → Recargar',
+    notfound:'<b style="color:var(--red)">❌ No se encontró cámara</b><br>Ingrese el DNI manualmente.',
+    'no-support':'<b style="color:var(--red)">❌ Navegador incompatible</b><br>Use Google Chrome para usar la cámara.',
+    other:'<b style="color:var(--yellow)">⚠️ Error al abrir cámara</b><br>Ingrese el DNI manualmente o intente de nuevo.'
+  };
+  el.innerHTML=msgs[tipo]||msgs.other;
+}
+
+// ── REGISTRAR ────────────────────────────────────────────
+function clearDNI(){
+  document.getElementById('dni-input').value='';
+  document.getElementById('scan-result').innerHTML='';
+  document.getElementById('cam-err').style.display='none';
+}
+
+function registrar(){
+  var dni=document.getElementById('dni-input').value.trim();
+  if(!dni||dni.length<7){ toast('⚠️ Ingrese un DNI válido (7-8 dígitos)'); return; }
+
+  // Check locally first
+  var est=allStudents.find(function(s){ return s.dni===dni; });
+  if(!est){ showResult({ok:false,msg:'DNI no encontrado. Agregue al alumno primero en 👥 Alumnos.'}); return; }
+
+  // Check if already registered
+  var yaReg=allHoy.find(function(r){ return r.dni===dni; });
+  if(yaReg){ showResult({ok:false,msg:est.nombre+' ya fue registrado hoy a las '+yaReg.hora,nombre:est.nombre,duplicate:true}); return; }
+
+  // Get time and status
+  var now=new Date();
+  var h=now.getHours(), m=now.getMinutes();
+  var hora=(h<10?'0'+h:h)+':'+(m<10?'0'+m:m)+':'+(now.getSeconds()<10?'0'+now.getSeconds():now.getSeconds());
+  var corte=HORA_CORTE.split(':');
+  var corteMin=parseInt(corte[0])*60+parseInt(corte[1]);
+  var nowMin=h*60+m;
+  var estado=nowMin<=corteMin?'PRESENTE':'TARDE';
+
+  var registro={nombre:est.nombre,grado:est.grado,seccion:est.seccion,dni:dni,hora:hora,estado:estado,obs:''};
+
+  // Save locally immediately
+  allHoy.push(registro);
+  saveTodayRecords(allHoy);
+  updateStats();
+  renderHoy(allHoy);
+
+  showResult({ok:true,nombre:est.nombre,grado:est.grado,seccion:est.seccion,hora:hora,estado:estado,totalHoy:allHoy.length});
+  clearDNI();
+
+  // Sync to server in background
+  if(GAS_URL){
+    gasCall('registrarAsistencia',{dni:dni},function(r){
+      if(!r.ok&&!r.duplicate) toast('⚠️ Error sincronizando con Sheets');
+    },function(){
+      toast('⚠️ Sin conexión — guardado localmente');
+    });
+  }
+}
+
+function showResult(res){
+  var el=document.getElementById('scan-result');
+  var h='';
+  if(res.ok){
+    h='<div class="res ok"><div class="res-ico">✅</div><div>'+
+      '<div class="res-name">'+res.nombre+'</div>'+
+      '<div class="res-det">'+res.grado+' "'+res.seccion+'" · '+(res.estado==='TARDE'?'⚠️ TARDANZA':'🟢 PRESENTE')+'</div>'+
+      '<div class="res-hora">'+res.hora+'</div>'+
+      '<div class="res-det">Registrados hoy: <b style="color:var(--teal)">'+res.totalHoy+'</b></div>'+
+      '</div></div>';
+  } else if(res.duplicate){
+    h='<div class="res warn"><div class="res-ico">⚠️</div><div>'+
+      '<div class="res-name">'+(res.nombre||'Ya registrado')+'</div>'+
+      '<div class="res-det">'+res.msg+'</div></div></div>';
+  } else {
+    h='<div class="res err"><div class="res-ico">❌</div><div>'+
+      '<div class="res-name">No encontrado</div>'+
+      '<div class="res-det">'+res.msg+'</div></div></div>';
+  }
+  el.innerHTML=h;
+}
+
+// ── HOY ──────────────────────────────────────────────────
+function renderHoy(list){
+  var el=document.getElementById('list-hoy');
+  if(!list||!list.length){
+    el.innerHTML='<div class="empty"><span>📋</span><p>No hay registros hoy.<br>Use el escáner para comenzar.</p></div>';
+    renderHomeRecent([]);
+    return;
+  }
+  el.innerHTML=list.map(function(r){
+    var bc=r.estado==='PRESENTE'?'bp':r.estado==='TARDE'?'bt':r.estado==='JUSTIFICADO'?'bj':'ba';
+    return '<div class="att-item">'+
+      '<div class="att-av">'+(r.nombre?r.nombre[0]:'?')+'</div>'+
+      '<div class="att-info">'+
+        '<div class="att-name">'+r.nombre+'</div>'+
+        '<div class="att-meta">'+r.grado+' "'+r.seccion+'" · <span class="att-hora">'+r.hora+'</span></div>'+
+      '</div>'+
+      '<span class="badge '+bc+'">'+r.estado+'</span></div>';
+  }).join('');
+  renderHomeRecent(list);
+}
+
+function renderHomeRecent(list){
+  var el=document.getElementById('home-recent');
+  if(!list||!list.length){ el.innerHTML='<div class="empty" style="padding:20px"><span style="font-size:32px">📭</span><p>Aún no hay registros hoy.</p></div>'; return; }
+  var recent=list.slice(-5).reverse();
+  el.innerHTML=recent.map(function(r){
+    var bc=r.estado==='PRESENTE'?'bp':r.estado==='TARDE'?'bt':'ba';
+    return '<div class="att-item">'+
+      '<div class="att-av">'+(r.nombre?r.nombre[0]:'?')+'</div>'+
+      '<div class="att-info"><div class="att-name">'+r.nombre+'</div><div class="att-meta">'+r.grado+' "'+r.seccion+'"</div></div>'+
+      '<span class="badge '+bc+'">'+r.hora+'</span></div>';
+  }).join('');
+}
+
+// ── ALUMNOS ──────────────────────────────────────────────
+function renderStudents(list){
+  var el=document.getElementById('list-stu');
+  if(!list||!list.length){
+    el.innerHTML='<div class="empty"><span>👥</span><p>No hay estudiantes.<br>Toque <b>+ Agregar</b> para empezar.</p></div>'; return;
+  }
+  el.innerHTML=list.map(function(s){
+    var n=s.nombre||''; var ini=n?n[0].toUpperCase():'?';
+    var dni=s.dni; var nom=n.replace(/'/g,'&#39;');
+    return '<div class="stu-item">'+
+      '<div class="stu-av">'+ini+'</div>'+
+      '<div class="stu-info">'+
+        '<div class="stu-name">'+n+'</div>'+
+        '<div class="stu-meta">'+s.grado+' "'+s.seccion+'" · '+s.celular+'</div>'+
+        '<div class="stu-dni">DNI: '+dni+'</div>'+
+      '</div>'+
+      '<div class="stu-acts">'+
+        '<button class="btn btn-ghost btn-sm" onclick="verQR(\''+dni+'\',\''+nom+'\')">QR</button>'+
+        '<button class="btn btn-sm" style="background:rgba(255,77,109,.12);border:1px solid rgba(255,77,109,.25);color:var(--red)" onclick="eliminarAlumno(\''+dni+'\',\''+nom+'\')">🗑</button>'+
+      '</div></div>';
+  }).join('');
+}
+
+function closeAddModal(){
+  document.getElementById('modal-add').classList.remove('open');
+}
+
+function guardarAlumno(){
+  var nombre  = document.getElementById('f-nombre').value.trim();
+  var grado   = document.getElementById('f-grado').value;
+  var seccion = document.getElementById('f-seccion').value;
+  var celular = document.getElementById('f-cel').value.trim();
+  var dni     = document.getElementById('f-dni').value.trim();
+  if(!nombre||!dni){ toast('⚠️ Nombre y DNI son obligatorios'); return; }
+  if(dni.length<7)  { toast('⚠️ DNI debe tener 7 u 8 dígitos'); return; }
+  if(allStudents.find(function(s){ return s.dni===dni; })){
+    toast('❌ Ya existe un alumno con ese DNI'); return;
+  }
+  var nuevo={nombre:nombre,grado:grado,seccion:seccion,celular:celular,dni:dni};
+  allStudents.push(nuevo);
+  saveStudents(allStudents);
+  renderStudents(allStudents);
+  updateStats();
+  closeAddModal();
+  toast('✅ Estudiante guardado');
+  // Sync to server
+  if(GAS_URL) gasCall('saveEstudiante',nuevo,function(){},function(){
+    toast('⚠️ Guardado local — sin conexión a Sheets');
+  });
+  document.getElementById('f-nombre').value='';
+  document.getElementById('f-cel').value='';
+  document.getElementById('f-dni').value='';
+}
+
+window.verQR=function(dni,nombre){
+  document.getElementById('qr-name').textContent=nombre;
+  document.getElementById('qr-dni').textContent='DNI: '+dni;
+  var out=document.getElementById('qr-out');
+  out.innerHTML='<div class="qr-wrap"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+
+    encodeURIComponent(dni)+'&margin=10&color=000000&bgcolor=FFFFFF" style="width:200px;height:200px;border-radius:8px" alt="QR '+dni+'"></div>';
+  document.getElementById('modal-qr').classList.add('open');
+};
+
+window.eliminarAlumno=function(dni,nombre){
+  if(!confirm('¿Eliminar a '+nombre+'?')) return;
+  allStudents=allStudents.filter(function(s){ return s.dni!==dni; });
+  saveStudents(allStudents);
+  renderStudents(allStudents);
+  updateStats();
+  toast('🗑 Eliminado');
+  if(GAS_URL) gasCall('deleteEstudiante',{dni:dni},function(){},function(){});
+};
+
+// ── REPORTE ──────────────────────────────────────────────
+function verReporte(){
+  if(!GAS_URL){ toast('⚙️ Configure la URL de Apps Script primero'); return; }
+  showLoad('Generando reporte...');
+  gasCall('getReporteSemanal',null,function(data){
+    hideLoad();
+    if(!data||!data.secciones){ toast('❌ Error obteniendo reporte'); return; }
+    renderReporte(data);
+  },function(e){ hideLoad(); toast('❌ '+e); });
+}
+
+function renderReporte(data){
+  var el=document.getElementById('rep-content');
+  var days=['LUN','MAR','MIÉ','JUE','VIE'];
+  var html='';
+  data.secciones.forEach(function(sec){
+    html+='<div class="card"><div class="card-title">'+sec.grado+' — Sección '+sec.seccion+'</div>'+
+      '<div class="tw"><table class="rt"><thead><tr><th>Estudiante</th>';
+    days.forEach(function(d,i){ html+='<th>'+d+'<br><small style="opacity:.6;font-weight:400">'+data.weekDates[i].substring(0,5)+'</small></th>'; });
+    html+='<th>%</th></tr></thead><tbody>';
+    sec.alumnos.forEach(function(al){
+      var pres=0;
+      html+='<tr><td class="td-n">'+al.nombre.split(',')[0]+'</td>';
+      data.weekDates.forEach(function(d,di){
+        var info=al.dias[d]; var e=info.estado;
+        if(e==='PRESENTE'||e==='TARDE') pres++;
+        var cls=e==='PRESENTE'?'wP':e==='TARDE'?'wT':e==='AUSENTE'?'wA':'wD';
+        var lbl=e==='PRESENTE'?'P':e==='TARDE'?'T':e==='AUSENTE'?'A':e==='JUSTIFICADO'?'J':'–';
+        var ht=info.hora?'<br><small style="color:var(--teal);font-family:var(--mono)">'+info.hora+'</small>':'';
+        html+='<td><span class="wb '+cls+'">'+lbl+'</span>'+ht+'</td>';
+      });
+      var pct=Math.round(pres/5*100);
+      var pc=pct>=80?'var(--green)':pct>=60?'var(--yellow)':'var(--red)';
+      html+='<td><b style="color:'+pc+'">'+pct+'%</b></td></tr>';
+    });
+    html+='</tbody></table></div>'+
+      '<div style="margin-top:8px;font-size:11px;color:var(--gray);display:flex;gap:12px;flex-wrap:wrap">'+
+      '<span><span class="wb wP">P</span> Presente</span>'+
+      '<span><span class="wb wT">T</span> Tarde</span>'+
+      '<span><span class="wb wA">A</span> Ausente</span>'+
+      '<span><span class="wb wD">J</span> Justificado</span></div></div>';
+  });
+  el.innerHTML=html||'<div class="empty"><span>📊</span><p>No hay datos esta semana.</p></div>';
+}
+
+function exportarReporte(){
+  if(!GAS_URL){ toast('⚙️ Configure la URL de Apps Script primero'); return; }
+  showLoad('Exportando a Sheets...');
+  gasCall('generarHojaReporte',null,function(res){
+    hideLoad();
+    toast(res.ok?'✅ Hoja creada: '+res.sheetName:'❌ Error al exportar');
+  },function(e){ hideLoad(); toast('❌ '+e); });
+}
+
+// ── CONFIG ────────────────────────────────────────────────
+function guardarConfig(){
+  var url  = document.getElementById('cfg-url').value.trim();
+  var hora = document.getElementById('cfg-hora').value;
+  if(url && !url.startsWith('https://script.google.com')){
+    toast('⚠️ URL inválida — debe empezar con https://script.google.com'); return;
+  }
+  GAS_URL    = url;
+  HORA_CORTE = hora || '07:15';
+  saveCfg({ gasUrl:GAS_URL, horaCorte:HORA_CORTE });
+  document.getElementById('hora-corte-display').textContent = formatHora12(HORA_CORTE);
+  document.getElementById('cfg-status').textContent = '✅ Configuración guardada';
+  setTimeout(function(){ document.getElementById('cfg-status').textContent=''; },3000);
+  toast('✅ Configuración guardada');
+  if(GAS_URL) syncFromServer();
+}
+
+})();
+</script>
+
+<!-- Service Worker registration -->
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+}
+</script>
+</body>
+</html>
